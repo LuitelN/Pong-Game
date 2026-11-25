@@ -13,19 +13,27 @@ const ui = {
   text: document.querySelector("#endText"),
   again: document.querySelector("#again"),
   share: document.querySelector("#share"),
+  resume: document.querySelector("#resume"),
+  pauseButton: document.querySelector("#pauseButton"),
+  checkpointToast: document.querySelector("#checkpointToast"),
   hint: document.querySelector("#startHint"),
 };
 
 const SAVE_KEY = "rally100_save";
+const MILESTONES = [25, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
 const state = loadSave();
 let width = 0;
 let height = 0;
 let mode = "play";
+let paused = false;
+let speedMultiplier = 1;
 let lastTime = 0;
 let shake = 0;
 let flash = 0;
 let audioContext;
 let pointerActive = false;
+let toastTimer = 0;
+const reachedMilestones = new Set();
 const keys = new Set();
 const particles = [];
 const confetti = [];
@@ -46,9 +54,12 @@ function loadSave() {
   try {
     const saved = JSON.parse(localStorage.getItem(SAVE_KEY));
     return {
-      currentScore: 0,
-      bestScore: Math.max(0, saved?.bestScore || 0),
-      wins: Math.max(0, saved?.wins || 0),
+      currentScore: Math.max(
+        0,
+        Math.min(1000, Number(saved?.currentScore) || 0),
+      ),
+      bestScore: Math.max(0, Math.min(1000, Number(saved?.bestScore) || 0)),
+      wins: Math.max(0, Number(saved?.wins) || 0),
     };
   } catch {
     return { currentScore: 0, bestScore: 0, wins: 0 };
@@ -56,20 +67,22 @@ function loadSave() {
 }
 
 function saveGame() {
-  localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+  } catch {}
 }
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function formatScore(value, length) {
-  return String(value).padStart(length, "0");
+function formatScore(value, length = 4) {
+  return String(Math.max(0, Math.min(9999, value))).padStart(length, "0");
 }
 
 function updateHud() {
-  ui.score.textContent = formatScore(state.currentScore, 3);
-  ui.best.textContent = formatScore(state.bestScore, 3);
+  ui.score.textContent = formatScore(state.currentScore);
+  ui.best.textContent = formatScore(state.bestScore);
   ui.wins.textContent = formatScore(state.wins, 2);
 }
 
@@ -98,7 +111,7 @@ function resetBall(direction = -1) {
   ball.y = height * 0.5;
   ball.radius = Math.max(6, Math.min(9, width * 0.009));
   ball.baseSpeed = Math.max(390, Math.min(520, width * 0.55));
-  ball.speed = ball.baseSpeed;
+  ball.speed = ball.baseSpeed * speedMultiplier;
   const angle = Math.random() * 0.7 - 0.35;
   ball.vx = Math.cos(angle) * ball.speed * direction;
   ball.vy = Math.sin(angle) * ball.speed;
@@ -109,7 +122,12 @@ function resetBall(direction = -1) {
 function resetRally() {
   state.currentScore = 0;
   mode = "play";
+  paused = false;
+  speedMultiplier = 1;
+  reachedMilestones.clear();
   ui.overlay.classList.remove("show");
+  ui.resume.classList.remove("show");
+  updatePauseButton();
   particles.length = 0;
   confetti.length = 0;
   rightPaddle.height = leftPaddle.height = Math.max(
@@ -138,7 +156,8 @@ function deflect(paddle, direction) {
     1,
   );
   const angle = relative * (Math.PI / 4);
-  ball.speed = Math.min(ball.speed * 1.015, ball.baseSpeed * 1.8);
+  const maxSpeed = ball.baseSpeed * 1.8 * speedMultiplier;
+  ball.speed = Math.min(ball.speed * 1.015, maxSpeed);
   ball.vx = Math.cos(angle) * ball.speed * direction;
   ball.vy = Math.sin(angle) * ball.speed;
 }
@@ -198,40 +217,130 @@ function playVictoryChime() {
 
 function endGame() {
   mode = "gameover";
+  paused = false;
   state.currentScore = 0;
+  speedMultiplier = 1;
+  reachedMilestones.clear();
   saveGame();
   updateHud();
+  updatePauseButton();
   ui.title.textContent = "RALLY LOST";
   ui.title.className = "loss";
-  ui.text.textContent = `BEST ${formatScore(state.bestScore, 3)} • WINS ${state.wins}`;
+  ui.text.textContent = `BEST ${formatScore(state.bestScore)} • WINS ${state.wins}`;
+  ui.resume.classList.remove("show");
   ui.overlay.classList.add("show");
+}
+
+function showCheckpointToast(score) {
+  clearTimeout(toastTimer);
+  ui.checkpointToast.textContent = `CHECKPOINT ${score}! +1.25% SPEED`;
+  ui.checkpointToast.classList.add("show");
+  toastTimer = setTimeout(
+    () => ui.checkpointToast.classList.remove("show"),
+    2200,
+  );
+}
+
+function milestoneFireworks(score) {
+  const tier = MILESTONES.indexOf(score);
+  if (tier < 0 || reachedMilestones.has(score)) return;
+  reachedMilestones.add(score);
+  speedMultiplier *= 1.0125;
+  ball.vx *= 1.0125;
+  ball.vy *= 1.0125;
+  const scale = 1 + tier * 0.13;
+  const burstCount = Math.min(28, 8 + tier * 2);
+  const particleCount = Math.min(170, 24 + tier * 12);
+  const spread = 180 + tier * 24;
+
+  flash = Math.min(1.5, 0.65 + tier * 0.08);
+  shake = Math.min(12, 3 + tier * 0.7);
+
+  for (let burstIndex = 0; burstIndex < burstCount; burstIndex++) {
+    const angle = (burstIndex / burstCount) * Math.PI * 2;
+    const originX = width * (0.25 + Math.random() * 0.5);
+    const originY = height * (0.18 + Math.random() * 0.28);
+    for (let i = 0; i < particleCount / burstCount; i++) {
+      const a = angle + (Math.random() - 0.5) * 0.7;
+      const speed = spread * (0.45 + Math.random() * 0.75) * scale;
+      particles.push({
+        x: originX,
+        y: originY,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        life: 1,
+        size: (2 + Math.random() * 3) * scale,
+        color: ["#64f4ff", "#ff5baf", "#f7f7f5", "#ffe66d"][i % 4],
+        gravity: 50 + tier * 4,
+      });
+    }
+  }
+
+  if (score === 1000) {
+    for (let i = 0; i < 220; i++) {
+      confetti.push({
+        x: width * 0.5 + (Math.random() - 0.5) * width * 0.7,
+        y: height * 0.28 + (Math.random() - 0.5) * height * 0.22,
+        vx: (Math.random() - 0.5) * 800,
+        vy: -350 - Math.random() * 650,
+        life: 1.2 + Math.random() * 2,
+        size: 4 + Math.random() * 9,
+        color: ["#64f4ff", "#ff5baf", "#f7f7f5", "#ffe66d"][i % 4],
+        rotation: Math.random() * 6,
+      });
+    }
+  }
+
+  [261.63, 329.63, 392, 523.25].forEach((frequency, index) => {
+    setTimeout(
+      () => playTone(frequency * (1 + tier * 0.015), 0.18 + tier * 0.012),
+      index * 90,
+    );
+  });
+  showCheckpointToast(score);
 }
 
 function winGame() {
   mode = "victory";
   state.wins += 1;
-  state.bestScore = Math.max(state.bestScore, 100);
+  state.bestScore = Math.max(state.bestScore, 1000);
   saveGame();
   updateHud();
   playVictoryChime();
 
-  for (let i = 0; i < 180; i++) {
-    confetti.push({
-      x: width * 0.5 + (Math.random() - 0.5) * width * 0.4,
-      y: height * 0.42 + (Math.random() - 0.5) * height * 0.2,
-      vx: (Math.random() - 0.5) * 600,
-      vy: -300 - Math.random() * 500,
-      life: 0.8 + Math.random() * 1.5,
-      size: 3 + Math.random() * 7,
-      color: ["#64f4ff", "#ff5baf", "#f7f7f5", "#ffe66d"][i % 4],
-      rotation: Math.random() * 6,
-    });
-  }
-
-  ui.title.textContent = "VICTORY";
+  ui.title.textContent = "1000 VICTORY";
   ui.title.className = "";
-  ui.text.textContent = `100 VOLLEY RALLY COMPLETE • WINS ${state.wins}`;
+  ui.text.textContent = `1000 VOLLEY RALLY COMPLETE • WINS ${state.wins}`;
+  ui.resume.classList.remove("show");
   setTimeout(() => ui.overlay.classList.add("show"), 420);
+}
+
+function updatePauseButton() {
+  ui.pauseButton.textContent = paused ? "▶ RESUME" : "Ⅱ PAUSE";
+  ui.pauseButton.setAttribute("aria-pressed", String(paused));
+  ui.pauseButton.setAttribute(
+    "aria-label",
+    paused ? "Resume game" : "Pause game",
+  );
+}
+
+function togglePause() {
+  if (mode === "gameover" || mode === "victory") return;
+  paused = !paused;
+  keys.clear();
+  pointerActive = false;
+  lastTime = performance.now();
+  updatePauseButton();
+  if (paused) {
+    ui.title.textContent = "PAUSED";
+    ui.title.className = "";
+    ui.text.textContent = `VOLLEY ${formatScore(state.currentScore)} • P / ESC TO RESUME`;
+    ui.resume.classList.add("show");
+    ui.overlay.classList.add("show");
+  } else {
+    ui.overlay.classList.remove("show");
+    ui.resume.classList.remove("show");
+  }
 }
 
 function updateEffects(dt) {
@@ -240,11 +349,13 @@ function updateEffects(dt) {
     const particle = particles[i];
     particle.x += particle.vx * scale;
     particle.y += particle.vy * scale;
+    particle.vy += (particle.gravity || 0) * scale;
     particle.vx *= Math.pow(0.08, scale);
-    particle.vy *= Math.pow(0.08, scale);
-    particle.life -= scale * 1.8;
+    particle.vy *= Math.pow(0.995, scale);
+    particle.life -= scale * 1.35;
     if (particle.life <= 0) particles.splice(i, 1);
   }
+  if (particles.length > 500) particles.splice(0, particles.length - 500);
 
   for (let i = confetti.length - 1; i >= 0; i--) {
     const piece = confetti[i];
@@ -255,9 +366,11 @@ function updateEffects(dt) {
     piece.life -= scale * 0.45;
     if (piece.life <= 0) confetti.splice(i, 1);
   }
+  if (confetti.length > 220) confetti.splice(0, confetti.length - 220);
 }
 
 function update(dt) {
+  if (paused) return;
   if (mode !== "play") {
     updateEffects(dt);
     return;
@@ -306,7 +419,7 @@ function update(dt) {
   if (ball.vx < 0 && collides(leftPaddle)) hitPaddle(leftPaddle, 1);
   if (ball.vx > 0 && collides(rightPaddle)) {
     hitPaddle(rightPaddle, -1);
-    state.currentScore += 1;
+    state.currentScore = Math.min(1000, state.currentScore + 1);
     state.bestScore = Math.max(state.bestScore, state.currentScore);
     rightPaddle.height = Math.max(
       62,
@@ -317,9 +430,11 @@ function update(dt) {
       topLimit,
       height - rightPaddle.height - height * 0.04,
     );
+    if (MILESTONES.includes(state.currentScore))
+      milestoneFireworks(state.currentScore);
     updateHud();
     saveGame();
-    if (state.currentScore >= 100) winGame();
+    if (state.currentScore === 1000) winGame();
   }
 
   if (ball.x > width + ball.radius * 3) endGame();
@@ -402,6 +517,11 @@ function loop(time) {
 
 window.addEventListener("resize", resize);
 window.addEventListener("keydown", (event) => {
+  if (event.code === "KeyP" || event.code === "Escape") {
+    event.preventDefault();
+    togglePause();
+    return;
+  }
   if (["ArrowUp", "ArrowDown", "KeyW", "KeyS"].includes(event.code)) {
     event.preventDefault();
     keys.add(event.code);
@@ -429,8 +549,10 @@ canvas.addEventListener("pointercancel", () => {
 });
 
 ui.again.addEventListener("click", resetRally);
+ui.resume.addEventListener("click", togglePause);
+ui.pauseButton.addEventListener("click", togglePause);
 ui.share.addEventListener("click", async () => {
-  const text = `I completed a 100-volley rally in RALLY 100! 🏓\nBest: ${state.bestScore} • Wins: ${state.wins}`;
+  const text = `I reached ${state.bestScore}-volleys in RALLY 100! 🏓\nBest: ${state.bestScore} • Wins: ${state.wins}`;
   try {
     if (navigator.share) {
       await navigator.share({ title: "RALLY 100", text });

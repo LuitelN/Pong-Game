@@ -1,6 +1,6 @@
 # RALLY 100
 
-**RALLY 100** is a zero-dependency, cooperative Pong challenge for the browser. Instead of competing against an opponent, you and an AI partner share one goal: keep the rally alive and reach **100 successful human volleys**.
+**RALLY 100** is a zero-dependency, cooperative Pong challenge for the browser. Instead of competing against an opponent, you and an AI partner share one goal: keep the rally alive through milestone checkpoints and reach **1000 successful human volleys**.
 
 The game is built with HTML5 Canvas, CSS3, and vanilla JavaScript. It runs directly from a static host and is compatible with GitHub Pages and Vercel.
 
@@ -10,25 +10,28 @@ The game is built with HTML5 Canvas, CSS3, and vanilla JavaScript. It runs direc
 2. Control the **pink paddle on the right**.
 3. Move it vertically to return the ball.
 4. Every successful return by the human paddle adds **1 point** to the rally.
-5. Reach **100 points** to win.
+5. Reach **1000 points** to win.
 6. If the ball passes the right paddle, the rally ends and the score resets to zero.
 
 ### Controls
 
 | Platform         | Controls                                              |
 | ---------------- | ----------------------------------------------------- |
-| Desktop          | `↑` / `↓` or `W` / `S`                                |
+| Desktop          | `↑` / `↓`, `W` / `S`; `P` or `Esc` to pause/resume    |
 | Mobile and touch | Press and drag anywhere vertically on the game canvas |
 
 The blue paddle on the left is your AI partner. It tracks and returns the ball automatically.
 
 ## Gameplay Features
 
-- Cooperative 100-volley challenge
+- Cooperative 1000-volley challenge
+- Scaling milestone fireworks at 25, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, and 1000
+- Permanent 1.25% rally speed boost at every checkpoint
+- Accessible on-screen Pause/Resume control and P/Escape shortcuts
 - Responsive full-screen retro interface
 - Dynamic paddle deflection based on hit position
 - Increasing ball speed after human returns
-- Gradually shrinking right paddle near the 100-point milestone
+- Gradually shrinking right paddle near the 1000-point milestone
 - Screen shake, hit flashes, and particle sparks
 - Victory confetti and a synthesized retro chime
 - Native share support with clipboard fallback
@@ -49,7 +52,7 @@ Rally progress is stored locally in the browser under the key `rally100_save`:
 
 - **currentScore** tracks the active rally.
 - **bestScore** records the longest completed rally.
-- **wins** counts successful 100-volley victories.
+- **wins** counts successful 1000-volley victories.
 
 ## Run Locally
 

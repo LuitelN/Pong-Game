@@ -42,11 +42,12 @@ canvas {
   position: fixed;
   inset: 0 0 auto;
   z-index: 4;
-  height: 92px;
+  height: 72px;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: 1fr auto 1fr auto;
   align-items: start;
-  padding: 20px 28px;
+  gap: 6px;
+  padding: 14px 12px;
   pointer-events: none;
 }
 
@@ -152,6 +153,57 @@ canvas {
   box-shadow: 5px 5px 0 var(--pink);
 }
 
+.pause-button {
+  pointer-events: auto;
+  border: 2px solid var(--ink);
+  background: rgba(10, 10, 10, 0.82);
+  color: var(--ink);
+  font:
+    8px "Press Start 2P",
+    "Courier New",
+    monospace;
+  min-height: 36px;
+  padding: 8px 10px;
+  cursor: pointer;
+  max-width: 72px;
+  font-size: 6px;
+}
+.pause-button:focus-visible,
+.retro-button:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+.checkpoint-toast {
+  position: fixed;
+  z-index: 8;
+  top: 112px;
+  left: 50%;
+  transform: translate(-50%, -10px);
+  max-width: calc(100vw - 24px);
+  border: 2px solid var(--cyan);
+  background: rgba(10, 10, 10, 0.92);
+  padding: 12px 14px;
+  color: var(--cyan);
+  font-size: 9px;
+  text-align: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: 180ms ease;
+  pointer-events: none;
+}
+.checkpoint-toast.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+}
+.resume-button {
+  display: none;
+}
+.resume-button.show {
+  display: inline-block;
+}
+
 .start-hint {
   position: fixed;
   z-index: 5;
@@ -168,6 +220,8 @@ canvas {
   #hud {
     height: 72px;
     padding: 14px 12px;
+    grid-template-columns: 1fr auto 1fr auto;
+    gap: 6px;
   }
   .brand .sub,
   .stats {

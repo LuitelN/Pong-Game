@@ -19,19 +19,39 @@
       </div>
       <div class="score-wrap">
         <div class="score-label">VOLLEY</div>
-        <div id="score">000</div>
+        <div id="score">0000</div>
       </div>
       <div class="stats">
-        BEST <b id="best">000</b><br />WINS <b id="wins">00</b>
+        BEST <b id="best">0000</b><br />WINS <b id="wins">00</b>
       </div>
+      <button
+        id="pauseButton"
+        class="pause-button"
+        type="button"
+        aria-label="Pause game"
+        aria-pressed="false"
+      >
+        Ⅱ PAUSE
+      </button>
     </header>
+    <div
+      id="checkpointToast"
+      class="checkpoint-toast"
+      role="status"
+      aria-live="polite"
+    ></div>
     <div id="startHint" class="start-hint">MOVE WITH ↑ ↓ / W S / TOUCH</div>
     <div id="overlay" class="overlay" role="dialog" aria-modal="true">
       <div class="panel">
         <h1 id="endTitle">VICTORY</h1>
-        <p id="endText">100 VOLLEY RALLY COMPLETE</p>
+        <p id="endText">1000 VOLLEY RALLY COMPLETE</p>
+        <button id="resume" class="retro-button resume-button" type="button">
+          RESUME
+        </button>
         <button id="again" class="retro-button">PLAY AGAIN</button>
-        <button id="share" class="retro-button secondary">SHARE</button>
+        <button id="share" class="retro-button secondary" type="button">
+          SHARE
+        </button>
       </div>
     </div>
 
@@ -264,7 +284,7 @@
             );
             updateHUD();
             save();
-            if (state.currentScore >= 100) win();
+            if (state.currentScore >= 1000) win();
           }
 
           if (ball.x > W + ball.r * 3) gameOver();
@@ -487,7 +507,7 @@
 
         againBtn.addEventListener("click", resetRally);
         shareBtn.addEventListener("click", async () => {
-          const text = `I completed a 100-volley rally in RALLY 100! 🏓\nBest: ${state.bestScore} • Wins: ${state.wins}`;
+          const text = `I reached ${state.bestScore}-volleys in RALLY 100! 🏓\nBest: ${state.bestScore} • Wins: ${state.wins}`;
           try {
             if (navigator.share)
               await navigator.share({ title: "RALLY 100", text });
@@ -509,6 +529,12 @@
     </script>
     -->
     <script type="module" src="game.js"></script>
-    <!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "a8d4bec1ec4e45688c176df62123abef"}'></script><!-- End Cloudflare Web Analytics -->
+    <!-- Cloudflare Web Analytics -->
+    <script
+      type="module"
+      src="https://static.cloudflareinsights.com/beacon.min.js"
+      data-cf-beacon='{"token": "a8d4bec1ec4e45688c176df62123abef"}'
+    ></script>
+    <!-- End Cloudflare Web Analytics -->
   </body>
 </html>
