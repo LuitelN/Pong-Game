@@ -796,11 +796,10 @@ function leaveMultiplayerRoom(closePeer = true) {
     } catch {}
   }
   multiplayerPeerId = null;
+  multiplayerRoom = null;
   multiplayerActive = false;
   multiplayerMatchOver = false;
-  ui.leaveRoom.classList.remove("show");
-  multiplayerPeerReady = false;
-  setStartMatchVisible(false);
+  setInviteButtonVisible(false);
 }
 function showMultiplayerError(message) {
   multiplayerMatchOver = true;
@@ -809,6 +808,7 @@ function showMultiplayerError(message) {
   ui.title.className = "loss";
   ui.text.textContent = `${message} Return to the lobby.`;
   ui.resume.classList.remove("show");
+  ui.again.textContent = "BACK TO LOBBY";
   ui.overlay.classList.add("show");
 }
 function startMultiplayerCanvas() {
@@ -1189,7 +1189,9 @@ ui.again.addEventListener("click", () => {
     ui.overlay.classList.remove("show");
     multiplayerActive = false;
     leaveMultiplayerRoom(true);
+    ui.again.textContent = "PLAY AGAIN";
     ui.lobby.classList.add("show");
+    setInviteButtonVisible(false);
   } else {
     resetRally();
   }
@@ -1237,6 +1239,14 @@ ui.startMatchButton.addEventListener("click", () => {
   startMultiplayerMatch();
 });
 ui.inviteButton.addEventListener("click", copyRoomInvite);
+ui.home.addEventListener("click", () => {
+  if (gameMode === "multiplayer") {
+    leaveMultiplayerRoom(true);
+  }
+  ui.overlay.classList.remove("show");
+  ui.again.textContent = "PLAY AGAIN";
+  showModeGate();
+});
 
 let multiplayerConnectionTimer = 0;
 
