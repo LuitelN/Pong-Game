@@ -37,6 +37,7 @@ const ui = {
   lobbyStatus: document.querySelector("#lobbyStatus"),
   roomList: document.querySelector("#roomList"),
   leaveRoom: document.querySelector("#leaveRoom"),
+  startMatchButton: document.querySelector("#startMatchButton"),
 };
 
 const SAVE_KEY = "rally100_save";
@@ -75,6 +76,7 @@ let preferredSide = "right";
 let lobbyChannel = null;
 let peerChannel = null;
 let multiplayerPeerId = null;
+let multiplayerPeerReady = false;
 const NAME_KEY = "pong_player_name_v1";
 
 function isMobileOrTouchDevice() {
@@ -178,6 +180,8 @@ function showLobby() {
   ui.lobby.classList.add("show");
   ui.playerName.value = getPlayerName();
   setSelectedSide(preferredSide);
+  setStartMatchVisible(false);
+  multiplayerPeerReady = false;
   setupLobbyChannel();
 }
 function showModeGate() {
@@ -302,11 +306,7 @@ function connectRoom(code, host) {
   multiplayerActive = true;
   multiplayerMatchOver = false;
   multiplayerRally = 0;
-  multiplayerSide = host
-    ? preferredSide
-    : preferredSide === "left"
-      ? "right"
-      : "left";
+  multiplayerSide = host ? "left" : "right";
   ui.leaveRoom.classList.add("show");
   ui.lobbyStatus.textContent = host
     ? `Room ${code} created. Waiting for a player…`
@@ -337,37 +337,49 @@ function connectRoom(code, host) {
 }
 function attachPeerConnection(connection) {
   peerChannel = connection;
-  connection.on("open", () =>
+  connection.on("open", () => {
+    multiplayerPeerReady = true;
+    setStartMatchVisible(false);
+    showAssignedSide();
     connection.send({
       type: "player-info",
       name: getPlayerName(),
-      preferredSide,
-    }),
-  );
+      side: multiplayerSide,
+    });
+  });
   connection.on("data", handlePeerMessage);
   connection.on("close", () => {
+    multiplayerPeerReady = false;
+    setStartMatchVisible(false);
     if (multiplayerActive && !multiplayerMatchOver)
       showMultiplayerError("Your opponent disconnected.");
   });
-  connection.on("error", () =>
-    showMultiplayerError("Network connection failed."),
-  );
+  connection.on("error", () => {
+    multiplayerPeerReady = false;
+    setStartMatchVisible(false);
+    showMultiplayerError("Network connection failed.");
+  });
 }
 function handlePeerMessage(message) {
   if (!message || typeof message !== "object") return;
   if (message.type === "player-info") {
-    ui.lobbyStatus.textContent = `Matched with ${message.name || "Player"}.`;
+    if (typeof message.side === "string") {
+      multiplayerSide = multiplayerHost ? "left" : "right";
+    }
+    ui.lobbyStatus.textContent = `Matched with ${message.name || "Player"}. Assigned side: ${multiplayerSide.toUpperCase()} paddle.`;
     if (multiplayerHost) {
-      const guestSide = multiplayerSide === "left" ? "right" : "left";
-      peerChannel.send({ type: "match-ready", guestSide });
-      peerChannel.send({ type: "start-countdown" });
-      startMultiplayerMatch();
+      setStartMatchVisible(true);
+      peerChannel.send({ type: "assigned-side", side: "right" });
     }
   }
-  if (message.type === "match-ready") multiplayerSide = message.guestSide;
-  if (message.type === "start-countdown") {
-    ui.lobby.classList.remove("show");
-    startMultiplayerCanvas();
+  if (message.type === "assigned-side") {
+    multiplayerSide = multiplayerHost ? "left" : "right";
+    ui.sideLeft.classList.toggle("selected", multiplayerSide === "left");
+    ui.sideRight.classList.toggle("selected", multiplayerSide === "right");
+    ui.lobbyStatus.textContent = `Matched. Assigned side: ${multiplayerSide.toUpperCase()} paddle. Waiting for host to start.`;
+  }
+  if (message.type === "start-match") {
+    startMultiplayerMatch();
   }
   if (message.type === "paddle")
     peerPaddleNormalized = clamp(Number(message.normalized) || 0.5, 0.05, 0.95);
@@ -442,7 +454,9 @@ function resize() {
     68,
     Math.min(110, height * 0.14),
   );
-  resetBall(Math.random() < 0.5 ? -1 : 1);
+  if (!(gameMode === "multiplayer" && multiplayerActive)) {
+    resetBall(Math.random() < 0.5 ? -1 : 1);
+  }
 }
 
 function resetBall(direction = -1) {
@@ -654,6 +668,21 @@ function winGame() {
   setTimeout(() => ui.overlay.classList.add("show"), 420);
 }
 
+function setStartMatchVisible(visible) {
+  if (!ui.startMatchButton) return;
+  ui.startMatchButton.disabled = !visible;
+  ui.startMatchButton.style.opacity = visible ? "1" : "0";
+  ui.startMatchButton.style.pointerEvents = visible ? "auto" : "none";
+  ui.startMatchButton.style.visibility = visible ? "visible" : "hidden";
+}
+
+function showAssignedSide() {
+  if (!multiplayerActive) return;
+  ui.sideLeft.classList.toggle("selected", multiplayerSide === "left");
+  ui.sideRight.classList.toggle("selected", multiplayerSide === "right");
+  ui.lobbyStatus.textContent = `Assigned side: ${multiplayerSide.toUpperCase()} paddle. Waiting for a match start.`;
+}
+
 function updatePauseButton() {
   ui.pauseButton.textContent = paused ? "▶ RESUME" : "Ⅱ PAUSE";
   ui.pauseButton.setAttribute("aria-pressed", String(paused));
@@ -700,6 +729,8 @@ function leaveMultiplayerRoom(closePeer = true) {
   multiplayerActive = false;
   multiplayerMatchOver = false;
   ui.leaveRoom.classList.remove("show");
+  multiplayerPeerReady = false;
+  setStartMatchVisible(false);
 }
 function showMultiplayerError(message) {
   multiplayerMatchOver = true;
@@ -716,13 +747,15 @@ function startMultiplayerCanvas() {
   multiplayerMatchOver = false;
   multiplayerRally = 0;
   multiplayerStartedAt = performance.now();
+  lastTime = performance.now();
   mode = "play";
   paused = false;
+  keys.clear();
+  pointerActive = false;
+  ui.lobby.classList.remove("show");
+  ui.overlay.classList.remove("show");
+  setStartMatchVisible(false);
   resetBall(Math.random() < 0.5 ? -1 : 1);
-  ui.score.textContent = "0000";
-  ui.hint.textContent = "MOVE YOUR PADDLE • FIRST MISS LOSES";
-  ui.hint.style.opacity = "1";
-  updatePauseButton();
 }
 function startMultiplayerMatch() {
   ui.lobby.classList.remove("show");
@@ -821,7 +854,6 @@ function updateMultiplayer(dt) {
   sendMultiplayerPaddleState();
 
   if (!multiplayerHost) {
-    sendHostState();
     return;
   }
   ball.x += ball.vx * scale;
@@ -925,9 +957,33 @@ function update(dt) {
   if (ball.x > width + ball.radius * 3) endGame();
   if (ball.x < -ball.radius * 3) resetBall(-1);
 
+  updateEffects(dt);
+}
+
+function updateEffects(dt) {
+  const scale = Math.min(dt, 1 / 30);
+
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const particle = particles[i];
+    particle.life -= scale * 1.35;
+    particle.vy += (particle.gravity || 0) * scale;
+    particle.x += particle.vx * scale;
+    particle.y += particle.vy * scale;
+    if (particle.life <= 0) particles.splice(i, 1);
+  }
+
+  for (let i = confetti.length - 1; i >= 0; i--) {
+    const piece = confetti[i];
+    piece.life -= scale;
+    piece.vy += 780 * scale;
+    piece.x += piece.vx * scale;
+    piece.y += piece.vy * scale;
+    piece.rotation += 4 * scale;
+    if (piece.life <= 0 || piece.y > height + 20) confetti.splice(i, 1);
+  }
+
   shake *= Math.pow(0.04, scale);
   flash *= Math.pow(0.01, scale);
-  updateEffects(dt);
 }
 
 function draw() {
@@ -1104,6 +1160,11 @@ ui.joinRoom.addEventListener("click", joinRoom);
 ui.playerName.addEventListener("change", () =>
   savePlayerName(ui.playerName.value),
 );
+ui.startMatchButton.addEventListener("click", () => {
+  if (!multiplayerHost || !peerChannel || !multiplayerPeerReady) return;
+  peerChannel.send({ type: "start-match" });
+  startMultiplayerMatch();
+});
 
 resize();
 updateHud();

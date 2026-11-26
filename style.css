@@ -460,6 +460,13 @@ canvas {
   line-height: 1.8;
   text-align: left;
 }
+.start-match-button {
+  width: 100%;
+  margin: 10px 0 0;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
 .room-list {
   display: grid;
   gap: 8px;
