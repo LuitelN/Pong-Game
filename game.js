@@ -8,11 +8,12 @@ const ui = {
   score: document.querySelector("#score"),
   best: document.querySelector("#best"),
   wins: document.querySelector("#wins"),
-  overlay: document.querySelector("#endTitle"),
+  overlay: document.querySelector("#overlay"),
   title: document.querySelector("#endTitle"),
   text: document.querySelector("#endText"),
   again: document.querySelector("#again"),
   share: document.querySelector("#share"),
+  home: document.querySelector("#home"),
   resume: document.querySelector("#resume"),
   pauseButton: document.querySelector("#pauseButton"),
   checkpointToast: document.querySelector("#checkpointToast"),
@@ -77,6 +78,12 @@ let lobbyChannel = null;
 let peerChannel = null;
 let multiplayerPeerId = null;
 let multiplayerPeerReady = false;
+let multiplayerMatchStarted = false;
+let localMovementReady = false;
+let remoteMovementReady = false;
+let localPlayerName = "";
+let remotePlayerName = "";
+let multiplayerRematchRequested = false;
 const NAME_KEY = "pong_player_name_v1";
 
 function isMobileOrTouchDevice() {
@@ -363,9 +370,12 @@ function attachPeerConnection(connection) {
 function handlePeerMessage(message) {
   if (!message || typeof message !== "object") return;
   if (message.type === "player-info") {
-    if (typeof message.side === "string") {
-      multiplayerSide = multiplayerHost ? "left" : "right";
-    }
+    remotePlayerName =
+      String(message.name || "Player")
+        .trim()
+        .slice(0, 18) || "Player";
+    localPlayerName = getPlayerName() || "Player";
+    multiplayerSide = multiplayerHost ? "left" : "right";
     ui.lobbyStatus.textContent = `Matched with ${message.name || "Player"}. Assigned side: ${multiplayerSide.toUpperCase()} paddle.`;
     if (multiplayerHost) {
       setStartMatchVisible(true);
@@ -381,8 +391,14 @@ function handlePeerMessage(message) {
   if (message.type === "start-match") {
     startMultiplayerMatch();
   }
-  if (message.type === "paddle")
+  if (message.type === "paddle") {
     peerPaddleNormalized = clamp(Number(message.normalized) || 0.5, 0.05, 0.95);
+    if (message.moved) {
+      remoteMovementReady = true;
+      peerChannel?.send({ type: "movement-ready" });
+    }
+  }
+  if (message.type === "movement-ready") remoteMovementReady = true;
   if (message.type === "state" && !multiplayerHost)
     applyRemoteMultiplayerState(message);
   if (message.type === "miss")

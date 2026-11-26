@@ -425,10 +425,7 @@ canvas {
   margin: 0;
 }
 .side-picker {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 14px;
+  display: none;
 }
 .side-button,
 .small-button {
