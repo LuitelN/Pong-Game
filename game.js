@@ -8,7 +8,7 @@ const ui = {
   score: document.querySelector("#score"),
   best: document.querySelector("#best"),
   wins: document.querySelector("#wins"),
-  overlay: document.querySelector("#endTitle"),
+  overlay: document.querySelector("#overlay"),
   title: document.querySelector("#endTitle"),
   text: document.querySelector("#endText"),
   again: document.querySelector("#again"),
@@ -385,14 +385,11 @@ function connectRoom(code, host) {
       attachPeerConnection(connection);
     }
   });
-  peer.on(
-    "error",
-    (error) => {
-      clearTimeout(multiplayerConnectionTimer);
-      ui.lobbyStatus.textContent = `Connection error: ${error.type || "try again"}. Check the room code or your network.`;
-      setStartMatchVisible(false);
-    },
-  );
+  peer.on("error", (error) => {
+    clearTimeout(multiplayerConnectionTimer);
+    ui.lobbyStatus.textContent = `Connection error: ${error.type || "try again"}. Check the room code or your network.`;
+    setStartMatchVisible(false);
+  });
 }
 function attachPeerConnection(connection) {
   peerChannel = connection;
@@ -436,8 +433,8 @@ function handlePeerMessage(message) {
   }
   if (message.type === "assigned-side") {
     multiplayerSide = multiplayerHost ? "left" : "right";
-    ui.sideLeft.classList.toggle("selected", multiplayerSide === "left");
-    ui.sideRight.classList.toggle("selected", multiplayerSide === "right");
+    ui.sideLeft?.classList.toggle("selected", multiplayerSide === "left");
+    ui.sideRight?.classList.toggle("selected", multiplayerSide === "right");
     ui.lobbyStatus.textContent = `Matched. Assigned side: ${multiplayerSide.toUpperCase()} paddle. Waiting for host to start.`;
   }
   if (message.type === "start-match") {
@@ -746,8 +743,8 @@ function setStartMatchVisible(visible) {
 
 function showAssignedSide() {
   if (!multiplayerActive) return;
-  ui.sideLeft.classList.toggle("selected", multiplayerSide === "left");
-  ui.sideRight.classList.toggle("selected", multiplayerSide === "right");
+  ui.sideLeft?.classList.toggle("selected", multiplayerSide === "left");
+  ui.sideRight?.classList.toggle("selected", multiplayerSide === "right");
   ui.lobbyStatus.textContent = `Assigned side: ${multiplayerSide.toUpperCase()} paddle. Waiting for a match start.`;
 }
 
@@ -1253,7 +1250,9 @@ function setInviteButtonVisible(visible) {
 }
 
 function readRoomInvite() {
-  const code = sanitizeRoomCode(new URL(window.location.href).searchParams.get("room"));
+  const code = sanitizeRoomCode(
+    new URL(window.location.href).searchParams.get("room"),
+  );
   if (code) {
     ui.roomCode.value = code;
   }
