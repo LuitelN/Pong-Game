@@ -1147,7 +1147,7 @@ window.addEventListener("keydown", (event) => {
 });
 window.addEventListener("keyup", (event) => keys.delete(event.code));
 
-canvas.addEventListener("pointerdown", (event) => {
+canvas?.addEventListener("pointerdown", (event) => {
   if (onboardingActive || gameMode === null) return;
   pointerActive = true;
   canvas.setPointerCapture?.(event.pointerId);
@@ -1159,7 +1159,7 @@ canvas.addEventListener("pointerdown", (event) => {
       : rightPaddle;
   paddle.y += (event.clientY - paddle.height * 0.5 - paddle.y) * 0.32;
 });
-canvas.addEventListener("pointermove", (event) => {
+canvas?.addEventListener("pointermove", (event) => {
   if (pointerActive) {
     const paddle =
       gameMode === "multiplayer"
@@ -1170,21 +1170,21 @@ canvas.addEventListener("pointermove", (event) => {
     paddle.y += (event.clientY - paddle.height * 0.5 - paddle.y) * 0.32;
   }
 });
-canvas.addEventListener("pointerup", () => {
+canvas?.addEventListener("pointerup", () => {
   pointerActive = false;
 });
-canvas.addEventListener("pointercancel", () => {
+canvas?.addEventListener("pointercancel", () => {
   pointerActive = false;
 });
 
-ui.onboardingNext.addEventListener("click", advanceOnboarding);
-ui.onboarding.addEventListener("pointerdown", (event) => {
+ui.onboardingNext?.addEventListener("click", advanceOnboarding);
+ui.onboarding?.addEventListener("pointerdown", (event) => {
   event.preventDefault();
   if (event.target === ui.onboardingNext) return;
   advanceOnboarding(event);
 });
 
-ui.again.addEventListener("click", () => {
+ui.again?.addEventListener("click", () => {
   if (gameMode === "multiplayer") {
     ui.overlay.classList.remove("show");
     multiplayerActive = false;
@@ -1196,9 +1196,9 @@ ui.again.addEventListener("click", () => {
     resetRally();
   }
 });
-ui.resume.addEventListener("click", togglePause);
-ui.pauseButton.addEventListener("click", togglePause);
-ui.share.addEventListener("click", async () => {
+ui.resume?.addEventListener("click", togglePause);
+ui.pauseButton?.addEventListener("click", togglePause);
+ui.share?.addEventListener("click", async () => {
   const text = `I reached ${state.bestScore}-volleys in RALLY 100! 🏓\nBest: ${state.bestScore} • Wins: ${state.wins}`;
   try {
     if (navigator.share) {
@@ -1213,31 +1213,31 @@ ui.share.addEventListener("click", async () => {
   } catch {}
 });
 
-ui.singlePlayerButton.addEventListener("click", () => {
+ui.singlePlayerButton?.addEventListener("click", () => {
   gameMode = "single";
   ui.modeGate.classList.remove("show");
   initOnboarding();
 });
-ui.multiplayerButton.addEventListener("click", showLobby);
-ui.lobbyBack.addEventListener("click", showModeGate);
-ui.leaveRoom.addEventListener("click", () => {
+ui.multiplayerButton?.addEventListener("click", showLobby);
+ui.lobbyBack?.addEventListener("click", showModeGate);
+ui.leaveRoom?.addEventListener("click", () => {
   leaveMultiplayerRoom(true);
   setInviteButtonVisible(false);
   ui.lobbyStatus.textContent =
     "Left the room. You can create or join another room.";
 });
-ui.createRoom.addEventListener("click", createRoom);
-ui.joinRoom.addEventListener("click", joinRoom);
-ui.playerName.addEventListener("change", () =>
+ui.createRoom?.addEventListener("click", createRoom);
+ui.joinRoom?.addEventListener("click", joinRoom);
+ui.playerName?.addEventListener("change", () =>
   savePlayerName(ui.playerName.value),
 );
-ui.startMatchButton.addEventListener("click", () => {
+ui.startMatchButton?.addEventListener("click", () => {
   if (!multiplayerHost || !peerChannel || !multiplayerPeerReady) return;
   peerChannel.send({ type: "start-match" });
   startMultiplayerMatch();
 });
-ui.inviteButton.addEventListener("click", copyRoomInvite);
-ui.home.addEventListener("click", () => {
+ui.inviteButton?.addEventListener("click", copyRoomInvite);
+ui.home?.addEventListener("click", () => {
   if (gameMode === "multiplayer") {
     leaveMultiplayerRoom(true);
   }
