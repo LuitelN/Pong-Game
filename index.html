@@ -54,6 +54,88 @@
         </button>
       </div>
     </div>
+
+    <div
+      id="modeGate"
+      class="mode-gate"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modeTitle"
+    >
+      <div class="mode-panel">
+        <div class="onboarding-kicker">RALLY 100</div>
+        <h1 id="modeTitle">CHOOSE MODE</h1>
+        <p>
+          Play solo against the computer or challenge another player online.
+        </p>
+        <div class="mode-actions">
+          <button id="singlePlayerButton" class="retro-button" type="button">
+            SINGLE PLAYER
+          </button>
+          <button
+            id="multiplayerButton"
+            class="retro-button secondary"
+            type="button"
+          >
+            MULTIPLAYER
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="lobby"
+      class="lobby"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="lobbyTitle"
+    >
+      <div class="lobby-panel">
+        <div class="lobby-heading">
+          <div>
+            <div class="onboarding-kicker">ONLINE MATCH</div>
+            <h1 id="lobbyTitle">LOBBY</h1>
+          </div>
+          <button id="lobbyBack" class="small-button" type="button">
+            MODE
+          </button>
+        </div>
+        <label class="field-label" for="playerName">DISPLAY NAME</label>
+        <input
+          id="playerName"
+          class="lobby-input"
+          maxlength="18"
+          autocomplete="nickname"
+        />
+        <div class="room-controls">
+          <input
+            id="roomCode"
+            class="lobby-input"
+            maxlength="12"
+            placeholder="ROOM CODE"
+          />
+          <button id="joinRoom" class="retro-button" type="button">JOIN</button>
+          <button id="createRoom" class="retro-button secondary" type="button">
+            CREATE
+          </button>
+        </div>
+        <div class="side-picker" aria-label="Choose paddle side">
+          <button id="sideLeft" class="side-button" type="button">LEFT</button>
+          <button id="sideRight" class="side-button" type="button">
+            RIGHT
+          </button>
+        </div>
+        <div class="lobby-status" id="lobbyStatus">
+          Enter a name, then join or create a room.
+        </div>
+        <div class="room-list-header">OPEN ROOMS</div>
+        <div id="roomList" class="room-list"></div>
+        <button id="leaveRoom" class="small-button leave-button" type="button">
+          LEAVE ROOM
+        </button>
+      </div>
+    </div>
+
     <div
       id="onboarding"
       class="onboarding"
@@ -560,6 +642,7 @@
       })();
     </script>
     -->
+    <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
     <script type="module" src="game.js"></script>
     <!-- Cloudflare Web Analytics -->
     <script

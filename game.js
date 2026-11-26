@@ -8,7 +8,7 @@ const ui = {
   score: document.querySelector("#score"),
   best: document.querySelector("#best"),
   wins: document.querySelector("#wins"),
-  overlay: document.querySelector("#overlay"),
+  overlay: document.querySelector("#endTitle"),
   title: document.querySelector("#endTitle"),
   text: document.querySelector("#endText"),
   again: document.querySelector("#again"),
@@ -23,6 +23,20 @@ const ui = {
   onboardingText: document.querySelector("#onboardingText"),
   arrowDemo: document.querySelector("#arrowDemo"),
   onboardingNext: document.querySelector("#onboardingNext"),
+  modeGate: document.querySelector("#modeGate"),
+  singlePlayerButton: document.querySelector("#singlePlayerButton"),
+  multiplayerButton: document.querySelector("#multiplayerButton"),
+  lobby: document.querySelector("#lobby"),
+  lobbyBack: document.querySelector("#lobbyBack"),
+  playerName: document.querySelector("#playerName"),
+  roomCode: document.querySelector("#roomCode"),
+  joinRoom: document.querySelector("#joinRoom"),
+  createRoom: document.querySelector("#createRoom"),
+  sideLeft: document.querySelector("#sideLeft"),
+  sideRight: document.querySelector("#sideRight"),
+  lobbyStatus: document.querySelector("#lobbyStatus"),
+  roomList: document.querySelector("#roomList"),
+  leaveRoom: document.querySelector("#leaveRoom"),
 };
 
 const SAVE_KEY = "rally100_save";
@@ -47,6 +61,21 @@ const confetti = [];
 
 let onboardingActive = false;
 let onboardingDesktopStep = 1;
+let gameMode = null;
+let multiplayerActive = false;
+let multiplayerRoom = null;
+let multiplayerHost = false;
+let multiplayerSide = "right";
+let multiplayerMatchOver = false;
+let multiplayerRally = 0;
+let multiplayerStartedAt = 0;
+let multiplayerPaddleNormalized = 0.5;
+let peerPaddleNormalized = 0.5;
+let preferredSide = "right";
+let lobbyChannel = null;
+let peerChannel = null;
+let multiplayerPeerId = null;
+const NAME_KEY = "pong_player_name_v1";
 
 function isMobileOrTouchDevice() {
   const coarsePointer = window.matchMedia?.("(pointer: coarse)").matches;
@@ -124,6 +153,228 @@ function initOnboarding() {
     ui.arrowDemo.classList.remove("show");
     ui.onboardingNext.textContent = "TAP / ENTER";
   }
+}
+
+function savePlayerName(name) {
+  try {
+    localStorage.setItem(NAME_KEY, name.trim().slice(0, 18));
+  } catch {}
+}
+function getPlayerName() {
+  try {
+    return (localStorage.getItem(NAME_KEY) || "").trim().slice(0, 18);
+  } catch {
+    return "";
+  }
+}
+function setSelectedSide(side) {
+  preferredSide = side;
+  multiplayerSide = side;
+  ui.sideLeft.classList.toggle("selected", side === "left");
+  ui.sideRight.classList.toggle("selected", side === "right");
+}
+function showLobby() {
+  ui.modeGate.classList.remove("show");
+  ui.lobby.classList.add("show");
+  ui.playerName.value = getPlayerName();
+  setSelectedSide(preferredSide);
+  setupLobbyChannel();
+}
+function showModeGate() {
+  leaveMultiplayerRoom(false);
+  ui.lobby.classList.remove("show");
+  ui.onboarding.classList.remove("show");
+  ui.modeGate.classList.add("show");
+  gameMode = null;
+  multiplayerActive = false;
+}
+
+let lobbyRooms = new Map();
+let lobbyHeartbeat = 0;
+function setupLobbyChannel() {
+  if (lobbyChannel) lobbyChannel.close();
+  lobbyChannel =
+    "BroadcastChannel" in window
+      ? new BroadcastChannel("rally100-lobby-v1")
+      : null;
+  if (!lobbyChannel) {
+    ui.lobbyStatus.textContent =
+      "Tab lobby unavailable. Share an exact room code.";
+    renderRoomList();
+    return;
+  }
+  lobbyChannel.onmessage = (event) => {
+    const message = event.data;
+    if (message?.type === "room-open" && message.room) {
+      lobbyRooms.set(message.room.code, {
+        name: message.room.name,
+        updatedAt: Date.now(),
+      });
+      renderRoomList();
+    }
+  };
+  renderRoomList();
+}
+function sanitizeRoomCode(value) {
+  return String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 12);
+}
+function renderRoomList() {
+  ui.roomList.replaceChildren();
+  const now = Date.now();
+  for (const [code, room] of lobbyRooms)
+    if (now - room.updatedAt > 12000) lobbyRooms.delete(code);
+  if (!lobbyRooms.size) {
+    const empty = document.createElement("div");
+    empty.className = "room-row";
+    empty.textContent = "No open rooms nearby";
+    ui.roomList.appendChild(empty);
+    return;
+  }
+  for (const [code, room] of lobbyRooms) {
+    const row = document.createElement("div");
+    row.className = "room-row";
+    const label = document.createElement("span");
+    label.textContent = `${code} • ${room.name || "Player"}`;
+    const join = document.createElement("button");
+    join.type = "button";
+    join.textContent = "JOIN";
+    join.addEventListener("click", () => joinRoomByCode(code));
+    row.append(label, join);
+    ui.roomList.appendChild(row);
+  }
+}
+function startLobbyHeartbeat(code, name) {
+  clearInterval(lobbyHeartbeat);
+  const broadcast = () =>
+    lobbyChannel?.postMessage({
+      type: "room-open",
+      room: { code, name, updatedAt: Date.now() },
+    });
+  broadcast();
+  lobbyHeartbeat = setInterval(broadcast, 4000);
+}
+function createRoom() {
+  const name = ui.playerName.value.trim().slice(0, 18);
+  if (!name) {
+    ui.lobbyStatus.textContent = "Enter a display name first.";
+    ui.playerName.focus();
+    return;
+  }
+  savePlayerName(name);
+  const code =
+    sanitizeRoomCode(ui.roomCode.value) ||
+    Math.random().toString(36).slice(2, 8).toUpperCase();
+  ui.roomCode.value = code;
+  connectRoom(code, true);
+}
+function joinRoomByCode(code) {
+  ui.roomCode.value = sanitizeRoomCode(code);
+  joinRoom();
+}
+function joinRoom() {
+  const name = ui.playerName.value.trim().slice(0, 18);
+  if (!name) {
+    ui.lobbyStatus.textContent = "Enter a display name first.";
+    ui.playerName.focus();
+    return;
+  }
+  const code = sanitizeRoomCode(ui.roomCode.value);
+  if (!code) {
+    ui.lobbyStatus.textContent = "Enter or select a room code.";
+    ui.roomCode.focus();
+    return;
+  }
+  savePlayerName(name);
+  connectRoom(code, false);
+}
+function connectRoom(code, host) {
+  if (!window.Peer) {
+    ui.lobbyStatus.textContent =
+      "Lobby service unavailable. Check your connection.";
+    return;
+  }
+  leaveMultiplayerRoom(false);
+  multiplayerRoom = code;
+  multiplayerHost = host;
+  multiplayerActive = true;
+  multiplayerMatchOver = false;
+  multiplayerRally = 0;
+  multiplayerSide = host
+    ? preferredSide
+    : preferredSide === "left"
+      ? "right"
+      : "left";
+  ui.leaveRoom.classList.add("show");
+  ui.lobbyStatus.textContent = host
+    ? `Room ${code} created. Waiting for a player…`
+    : `Connecting to room ${code}…`;
+
+  const peerId = host
+    ? `rally100-${code.toLowerCase()}-host`
+    : `rally100-${code.toLowerCase()}-${crypto.randomUUID?.() || Date.now()}`;
+  const peer = new Peer(peerId);
+  multiplayerPeerId = peer;
+  peer.on("open", () => {
+    if (host) {
+      lobbyRooms.set(code, { name: getPlayerName(), updatedAt: Date.now() });
+      startLobbyHeartbeat(code, getPlayerName());
+      peer.on("connection", attachPeerConnection);
+    } else {
+      const connection = peer.connect(`rally100-${code.toLowerCase()}-host`, {
+        reliable: true,
+      });
+      attachPeerConnection(connection);
+    }
+  });
+  peer.on(
+    "error",
+    (error) =>
+      (ui.lobbyStatus.textContent = `Connection error: ${error.type || "try another room"}`),
+  );
+}
+function attachPeerConnection(connection) {
+  peerChannel = connection;
+  connection.on("open", () =>
+    connection.send({
+      type: "player-info",
+      name: getPlayerName(),
+      preferredSide,
+    }),
+  );
+  connection.on("data", handlePeerMessage);
+  connection.on("close", () => {
+    if (multiplayerActive && !multiplayerMatchOver)
+      showMultiplayerError("Your opponent disconnected.");
+  });
+  connection.on("error", () =>
+    showMultiplayerError("Network connection failed."),
+  );
+}
+function handlePeerMessage(message) {
+  if (!message || typeof message !== "object") return;
+  if (message.type === "player-info") {
+    ui.lobbyStatus.textContent = `Matched with ${message.name || "Player"}.`;
+    if (multiplayerHost) {
+      const guestSide = multiplayerSide === "left" ? "right" : "left";
+      peerChannel.send({ type: "match-ready", guestSide });
+      peerChannel.send({ type: "start-countdown" });
+      startMultiplayerMatch();
+    }
+  }
+  if (message.type === "match-ready") multiplayerSide = message.guestSide;
+  if (message.type === "start-countdown") {
+    ui.lobby.classList.remove("show");
+    startMultiplayerCanvas();
+  }
+  if (message.type === "paddle")
+    peerPaddleNormalized = clamp(Number(message.normalized) || 0.5, 0.05, 0.95);
+  if (message.type === "state" && !multiplayerHost)
+    applyRemoteMultiplayerState(message);
+  if (message.type === "miss")
+    endMultiplayerMatch(message.winner, message.loser);
 }
 
 const ball = {
@@ -431,34 +682,179 @@ function togglePause() {
   }
 }
 
-function updateEffects(dt) {
-  const scale = Math.min(dt, 1 / 30);
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const particle = particles[i];
-    particle.x += particle.vx * scale;
-    particle.y += particle.vy * scale;
-    particle.vy += (particle.gravity || 0) * scale;
-    particle.vx *= Math.pow(0.08, scale);
-    particle.vy *= Math.pow(0.995, scale);
-    particle.life -= scale * 1.35;
-    if (particle.life <= 0) particles.splice(i, 1);
+function leaveMultiplayerRoom(closePeer = true) {
+  clearInterval(lobbyHeartbeat);
+  lobbyHeartbeat = 0;
+  if (peerChannel) {
+    try {
+      peerChannel.close();
+    } catch {}
   }
-  if (particles.length > 500) particles.splice(0, particles.length - 500);
-
-  for (let i = confetti.length - 1; i >= 0; i--) {
-    const piece = confetti[i];
-    piece.x += piece.vx * scale;
-    piece.y += piece.vy * scale;
-    piece.vy += 600 * scale;
-    piece.rotation += 0.05;
-    piece.life -= scale * 0.45;
-    if (piece.life <= 0) confetti.splice(i, 1);
+  peerChannel = null;
+  if (closePeer && multiplayerPeerId) {
+    try {
+      multiplayerPeerId.destroy();
+    } catch {}
   }
-  if (confetti.length > 220) confetti.splice(0, confetti.length - 220);
+  multiplayerPeerId = null;
+  multiplayerActive = false;
+  multiplayerMatchOver = false;
+  ui.leaveRoom.classList.remove("show");
 }
+function showMultiplayerError(message) {
+  multiplayerMatchOver = true;
+  multiplayerActive = false;
+  ui.title.textContent = "CONNECTION LOST";
+  ui.title.className = "loss";
+  ui.text.textContent = `${message} Return to the lobby.`;
+  ui.resume.classList.remove("show");
+  ui.overlay.classList.add("show");
+}
+function startMultiplayerCanvas() {
+  gameMode = "multiplayer";
+  multiplayerActive = true;
+  multiplayerMatchOver = false;
+  multiplayerRally = 0;
+  multiplayerStartedAt = performance.now();
+  mode = "play";
+  paused = false;
+  resetBall(Math.random() < 0.5 ? -1 : 1);
+  ui.score.textContent = "0000";
+  ui.hint.textContent = "MOVE YOUR PADDLE • FIRST MISS LOSES";
+  ui.hint.style.opacity = "1";
+  updatePauseButton();
+}
+function startMultiplayerMatch() {
+  ui.lobby.classList.remove("show");
+  startMultiplayerCanvas();
+}
+function applyRemoteMultiplayerState(message) {
+  if (typeof message.ballX === "number") ball.x = message.ballX * width;
+  if (typeof message.ballY === "number") ball.y = message.ballY * height;
+  if (typeof message.vx === "number") ball.vx = message.vx;
+  if (typeof message.vy === "number") ball.vy = message.vy;
+  if (typeof message.rally === "number") {
+    multiplayerRally = message.rally;
+    ui.score.textContent = formatScore(multiplayerRally);
+  }
+  if (typeof message.leftY === "number") {
+    leftPaddle.y = clamp(
+      message.leftY * height,
+      height * 0.12,
+      height - leftPaddle.height - height * 0.04,
+    );
+  }
+  if (typeof message.rightY === "number") {
+    rightPaddle.y = clamp(
+      message.rightY * height,
+      height * 0.12,
+      height - rightPaddle.height - height * 0.04,
+    );
+  }
+}
+function sendMultiplayerPaddleState() {
+  if (!peerChannel || !multiplayerActive) return;
+  peerChannel.send({ type: "paddle", normalized: multiplayerPaddleNormalized });
+}
+function sendHostState() {
+  if (!peerChannel || !multiplayerHost) return;
+  peerChannel.send({
+    type: "state",
+    ballX: ball.x / width,
+    ballY: ball.y / height,
+    vx: ball.vx,
+    vy: ball.vy,
+    rally: multiplayerRally,
+    leftY: leftPaddle.y / height,
+    rightY: rightPaddle.y / height,
+  });
+}
+function endMultiplayerMatch(winnerSide, loserSide) {
+  if (multiplayerMatchOver) return;
+  multiplayerMatchOver = true;
+  multiplayerActive = false;
+  mode = "gameover";
+  const won = winnerSide === multiplayerSide;
+  ui.title.textContent = won ? "VICTORY" : "RALLY LOST";
+  ui.title.className = won ? "" : "loss";
+  const elapsed = Math.max(
+    1,
+    Math.round((performance.now() - multiplayerStartedAt) / 1000),
+  );
+  ui.text.textContent = `${won ? "OPPONENT MISSED" : "YOU MISSED"} • RALLY ${multiplayerRally} • ${elapsed}s`;
+  ui.resume.classList.remove("show");
+  ui.overlay.classList.add("show");
+}
+function declareMultiplayerMiss(loserSide) {
+  if (multiplayerMatchOver) return;
+  const winnerSide = loserSide === "left" ? "right" : "left";
+  peerChannel?.send({ type: "miss", winner: winnerSide, loser: loserSide });
+  endMultiplayerMatch(winnerSide, loserSide);
+}
+function updateMultiplayer(dt) {
+  const scale = Math.min(dt, 1 / 30);
+  const topLimit = height * 0.12;
+  const bottomLimit = height - leftPaddle.height - height * 0.04;
+  let desiredDirection = 0;
+  if (keys.has("ArrowUp") || keys.has("KeyW")) desiredDirection -= 1;
+  if (keys.has("ArrowDown") || keys.has("KeyS")) desiredDirection += 1;
+  const localPaddle = multiplayerSide === "left" ? leftPaddle : rightPaddle;
+  localPaddle.velocity = localPaddle.velocity || 0;
+  localPaddle.velocity +=
+    (desiredDirection * Math.min(height * 0.85, 720) - localPaddle.velocity) *
+    Math.min(1, scale * 15);
+  localPaddle.y += localPaddle.velocity * scale;
+  localPaddle.y = clamp(localPaddle.y, topLimit, bottomLimit);
+  multiplayerPaddleNormalized = clamp(
+    (localPaddle.y + localPaddle.height * 0.5) / height,
+    0.05,
+    0.95,
+  );
 
+  const remotePaddle = multiplayerSide === "left" ? rightPaddle : leftPaddle;
+  remotePaddle.y +=
+    (peerPaddleNormalized * height -
+      remotePaddle.height * 0.5 -
+      remotePaddle.y) *
+    Math.min(1, scale * 12);
+  remotePaddle.y = clamp(remotePaddle.y, topLimit, bottomLimit);
+  sendMultiplayerPaddleState();
+
+  if (!multiplayerHost) {
+    sendHostState();
+    return;
+  }
+  ball.x += ball.vx * scale;
+  ball.y += ball.vy * scale;
+  if (ball.y - ball.radius <= height * 0.09) {
+    ball.y = height * 0.09 + ball.radius;
+    ball.vy = Math.abs(ball.vy);
+  }
+  if (ball.y + ball.radius >= height - height * 0.035) {
+    ball.y = height - height * 0.035 - ball.radius;
+    ball.vy = -Math.abs(ball.vy);
+  }
+  if (ball.vx < 0 && collides(leftPaddle)) {
+    hitPaddle(leftPaddle, 1);
+    multiplayerRally += 1;
+  }
+  if (ball.vx > 0 && collides(rightPaddle)) {
+    hitPaddle(rightPaddle, -1);
+    multiplayerRally += 1;
+  }
+  ui.score.textContent = formatScore(multiplayerRally);
+  if (ball.x < -ball.radius * 3) declareMultiplayerMiss("left");
+  if (ball.x > width + ball.radius * 3) declareMultiplayerMiss("right");
+  sendHostState();
+}
 function update(dt) {
-  if (onboardingActive || paused) return;
+  if (!gameMode) return;
+  if (paused) return;
+  if (gameMode === "multiplayer" && multiplayerActive) {
+    updateMultiplayer(dt);
+    return;
+  }
+  if (onboardingActive) return;
 
   if (mode !== "play") {
     updateEffects(dt);
@@ -626,16 +1022,26 @@ window.addEventListener("keydown", (event) => {
 window.addEventListener("keyup", (event) => keys.delete(event.code));
 
 canvas.addEventListener("pointerdown", (event) => {
-  if (onboardingActive) return;
+  if (onboardingActive || gameMode === null) return;
   pointerActive = true;
   canvas.setPointerCapture?.(event.pointerId);
-  rightPaddle.y +=
-    (event.clientY - rightPaddle.height * 0.5 - rightPaddle.y) * 0.32;
+  const paddle =
+    gameMode === "multiplayer"
+      ? multiplayerSide === "left"
+        ? leftPaddle
+        : rightPaddle
+      : rightPaddle;
+  paddle.y += (event.clientY - paddle.height * 0.5 - paddle.y) * 0.32;
 });
 canvas.addEventListener("pointermove", (event) => {
   if (pointerActive) {
-    rightPaddle.y +=
-      (event.clientY - rightPaddle.height * 0.5 - rightPaddle.y) * 0.32;
+    const paddle =
+      gameMode === "multiplayer"
+        ? multiplayerSide === "left"
+          ? leftPaddle
+          : rightPaddle
+        : rightPaddle;
+    paddle.y += (event.clientY - paddle.height * 0.5 - paddle.y) * 0.32;
   }
 });
 canvas.addEventListener("pointerup", () => {
@@ -652,7 +1058,16 @@ ui.onboarding.addEventListener("pointerdown", (event) => {
   advanceOnboarding(event);
 });
 
-ui.again.addEventListener("click", resetRally);
+ui.again.addEventListener("click", () => {
+  if (gameMode === "multiplayer") {
+    ui.overlay.classList.remove("show");
+    multiplayerActive = false;
+    leaveMultiplayerRoom(true);
+    ui.lobby.classList.add("show");
+  } else {
+    resetRally();
+  }
+});
 ui.resume.addEventListener("click", togglePause);
 ui.pauseButton.addEventListener("click", togglePause);
 ui.share.addEventListener("click", async () => {
@@ -670,7 +1085,28 @@ ui.share.addEventListener("click", async () => {
   } catch {}
 });
 
+ui.singlePlayerButton.addEventListener("click", () => {
+  gameMode = "single";
+  ui.modeGate.classList.remove("show");
+  initOnboarding();
+});
+ui.multiplayerButton.addEventListener("click", showLobby);
+ui.lobbyBack.addEventListener("click", showModeGate);
+ui.leaveRoom.addEventListener("click", () => {
+  leaveMultiplayerRoom(true);
+  ui.lobbyStatus.textContent =
+    "Left the room. You can create or join another room.";
+});
+ui.sideLeft.addEventListener("click", () => setSelectedSide("left"));
+ui.sideRight.addEventListener("click", () => setSelectedSide("right"));
+ui.createRoom.addEventListener("click", createRoom);
+ui.joinRoom.addEventListener("click", joinRoom);
+ui.playerName.addEventListener("change", () =>
+  savePlayerName(ui.playerName.value),
+);
+
 resize();
 updateHud();
-initOnboarding();
+ui.modeGate.classList.add("show");
+setSelectedSide(preferredSide);
 requestAnimationFrame(loop);

@@ -337,6 +337,161 @@ canvas {
   }
 }
 
+.mode-gate,
+.lobby {
+  position: fixed;
+  inset: 0;
+  z-index: 21;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 10, 10, 0.94);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 180ms ease;
+}
+.mode-gate.show,
+.lobby.show {
+  opacity: 1;
+  visibility: visible;
+}
+.mode-panel,
+.lobby-panel {
+  width: min(620px, calc(100vw - 28px));
+  max-height: calc(100vh - 28px);
+  overflow-y: auto;
+  border: 3px solid var(--ink);
+  background: var(--panel-black);
+  box-shadow: 10px 10px 0 rgba(100, 244, 255, 0.16);
+  padding: 30px 24px 24px;
+  text-align: center;
+}
+.mode-panel h1,
+.lobby-panel h1 {
+  margin: 10px 0 16px;
+  color: var(--cyan);
+  font-size: clamp(22px, 5vw, 38px);
+}
+.mode-panel p {
+  color: #b7b7af;
+  font-size: 9px;
+  line-height: 1.9;
+}
+.mode-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 24px;
+}
+.mode-actions .retro-button.secondary {
+  margin: 0;
+}
+.lobby-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  text-align: left;
+}
+.field-label,
+.room-list-header {
+  display: block;
+  margin: 14px 0 8px;
+  color: var(--muted);
+  font-size: 8px;
+  text-align: left;
+}
+.lobby-input {
+  width: 100%;
+  border: 2px solid var(--ink);
+  background: #080808;
+  color: var(--ink);
+  font:
+    10px "Press Start 2P",
+    "Courier New",
+    monospace;
+  padding: 14px;
+  outline: none;
+}
+.lobby-input:focus {
+  border-color: var(--cyan);
+}
+.room-controls {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  margin-top: 12px;
+}
+.room-controls .retro-button.secondary {
+  margin: 0;
+}
+.side-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+.side-button,
+.small-button {
+  border: 2px solid var(--ink);
+  background: #080808;
+  color: var(--ink);
+  font:
+    9px "Press Start 2P",
+    "Courier New",
+    monospace;
+  min-height: 42px;
+  cursor: pointer;
+}
+.side-button.selected {
+  border-color: var(--cyan);
+  background: var(--cyan);
+  color: var(--black);
+  box-shadow: 4px 4px 0 #17384a;
+}
+.small-button {
+  min-height: 36px;
+  padding: 8px 10px;
+}
+.lobby-status {
+  min-height: 34px;
+  margin-top: 14px;
+  color: var(--cyan);
+  font-size: 8px;
+  line-height: 1.8;
+  text-align: left;
+}
+.room-list {
+  display: grid;
+  gap: 8px;
+}
+.room-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 2px solid #3a3a36;
+  padding: 8px;
+  font-size: 8px;
+}
+.room-row button {
+  border: 2px solid var(--ink);
+  background: var(--ink);
+  color: var(--black);
+  font:
+    7px "Press Start 2P",
+    "Courier New",
+    monospace;
+  padding: 8px;
+  cursor: pointer;
+}
+.leave-button {
+  display: none;
+  width: 100%;
+  margin-top: 12px;
+}
+.leave-button.show {
+  display: block;
+}
+
 @media (max-width: 600px) {
   #hud {
     height: 72px;
