@@ -8,7 +8,7 @@ const ui = {
   score: document.querySelector("#score"),
   best: document.querySelector("#best"),
   wins: document.querySelector("#wins"),
-  overlay: document.querySelector("#overlay"),
+  overlay: document.querySelector("#endTitle"),
   title: document.querySelector("#endTitle"),
   text: document.querySelector("#endText"),
   again: document.querySelector("#again"),
@@ -346,6 +346,7 @@ function connectRoom(code, host) {
   leaveMultiplayerRoom(false);
   multiplayerRoom = code;
   multiplayerHost = host;
+  setInviteButtonVisible(true);
   multiplayerActive = true;
   multiplayerMatchOver = false;
   multiplayerRally = 0;
@@ -360,7 +361,19 @@ function connectRoom(code, host) {
     : `rally100-${code.toLowerCase()}-${crypto.randomUUID?.() || Date.now()}`;
   const peer = new Peer(peerId);
   multiplayerPeerId = peer;
+  clearTimeout(multiplayerConnectionTimer);
+  if (!host) {
+    multiplayerConnectionTimer = setTimeout(() => {
+      if (!multiplayerPeerReady) {
+        ui.lobbyStatus.textContent =
+          "Room not found or host offline. Check the code and try JOIN again.";
+        setInviteButtonVisible(false);
+        setStartMatchVisible(false);
+      }
+    }, 15000);
+  }
   peer.on("open", () => {
+    clearTimeout(multiplayerConnectionTimer);
     if (host) {
       lobbyRooms.set(code, { name: getPlayerName(), updatedAt: Date.now() });
       startLobbyHeartbeat(code, getPlayerName());
@@ -374,8 +387,11 @@ function connectRoom(code, host) {
   });
   peer.on(
     "error",
-    (error) =>
-      (ui.lobbyStatus.textContent = `Connection error: ${error.type || "try another room"}`),
+    (error) => {
+      clearTimeout(multiplayerConnectionTimer);
+      ui.lobbyStatus.textContent = `Connection error: ${error.type || "try again"}. Check the room code or your network.`;
+      setStartMatchVisible(false);
+    },
   );
 }
 function attachPeerConnection(connection) {
@@ -764,6 +780,8 @@ function togglePause() {
 }
 
 function leaveMultiplayerRoom(closePeer = true) {
+  clearTimeout(multiplayerConnectionTimer);
+  multiplayerConnectionTimer = 0;
   clearInterval(lobbyHeartbeat);
   lobbyHeartbeat = 0;
   if (peerChannel) {
