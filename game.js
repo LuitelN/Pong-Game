@@ -17,9 +17,16 @@ const ui = {
   pauseButton: document.querySelector("#pauseButton"),
   checkpointToast: document.querySelector("#checkpointToast"),
   hint: document.querySelector("#startHint"),
+  onboarding: document.querySelector("#onboarding"),
+  onboardingKicker: document.querySelector("#onboardingKicker"),
+  onboardingTitle: document.querySelector("#onboardingTitle"),
+  onboardingText: document.querySelector("#onboardingText"),
+  arrowDemo: document.querySelector("#arrowDemo"),
+  onboardingNext: document.querySelector("#onboardingNext"),
 };
 
 const SAVE_KEY = "rally100_save";
+const ONBOARDING_KEY = "pong_seen_onboarding_v1";
 const MILESTONES = [25, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
 const state = loadSave();
 let width = 0;
@@ -37,6 +44,87 @@ const reachedMilestones = new Set();
 const keys = new Set();
 const particles = [];
 const confetti = [];
+
+let onboardingActive = false;
+let onboardingDesktopStep = 1;
+
+function isMobileOrTouchDevice() {
+  const coarsePointer = window.matchMedia?.("(pointer: coarse)").matches;
+  const touchCapable = navigator.maxTouchPoints > 0 || "ontouchstart" in window;
+  const mobileUserAgent = /Android|iPhone|iPad|iPod|Mobile/i.test(
+    navigator.userAgent,
+  );
+  const narrowViewport = window.matchMedia?.("(max-width: 600px)").matches;
+  return Boolean(
+    coarsePointer || touchCapable || mobileUserAgent || narrowViewport,
+  );
+}
+
+function markOnboardingSeen() {
+  try {
+    localStorage.setItem(ONBOARDING_KEY, "1");
+  } catch {}
+}
+
+function completeOnboarding() {
+  if (!onboardingActive) return;
+  onboardingActive = false;
+  markOnboardingSeen();
+  ui.onboarding.classList.remove("show");
+  keys.clear();
+  pointerActive = false;
+  lastTime = performance.now();
+}
+
+function showDesktopArrowStep() {
+  onboardingDesktopStep = 2;
+  ui.onboardingKicker.textContent = "KEYBOARD CONTROLS";
+  ui.onboardingTitle.textContent = "MOVE WITH ↑ AND ↓";
+  ui.onboardingText.textContent =
+    "Use the up and down arrow keys (or move your mouse) to guide the pink paddle, pass the ball back to the blue paddle, and reach 1000.";
+  ui.arrowDemo.classList.add("show");
+  ui.onboardingNext.textContent = "START PLAYING";
+}
+
+function advanceOnboarding(event) {
+  if (!onboardingActive) return;
+  event?.preventDefault?.();
+  if (isMobileOrTouchDevice()) {
+    completeOnboarding();
+  } else if (onboardingDesktopStep === 1) {
+    showDesktopArrowStep();
+  } else {
+    completeOnboarding();
+  }
+}
+
+function initOnboarding() {
+  let seen = false;
+  try {
+    seen = localStorage.getItem(ONBOARDING_KEY) === "1";
+  } catch {}
+  if (seen) return;
+
+  onboardingActive = true;
+  onboardingDesktopStep = 1;
+  ui.onboarding.classList.add("show");
+
+  if (isMobileOrTouchDevice()) {
+    ui.onboardingKicker.textContent = "PHONE CONTROLS";
+    ui.onboardingTitle.textContent = "TOUCH & MOVE";
+    ui.onboardingText.textContent =
+      "Touch the pink paddle/rectangle and move your finger up or down to pass the ball back to the computer paddle.";
+    ui.arrowDemo.classList.remove("show");
+    ui.onboardingNext.textContent = "START PLAYING";
+  } else {
+    ui.onboardingKicker.textContent = "HOW TO PLAY";
+    ui.onboardingTitle.textContent = "CONTROL THE PADDLE";
+    ui.onboardingText.textContent =
+      "Use your mouse or keyboard on a computer. Move the pink paddle up and down to pass the ball back to the computer paddle and reach 1000.";
+    ui.arrowDemo.classList.remove("show");
+    ui.onboardingNext.textContent = "TAP / ENTER";
+  }
+}
 
 const ball = {
   x: 0,
@@ -370,7 +458,8 @@ function updateEffects(dt) {
 }
 
 function update(dt) {
-  if (paused) return;
+  if (onboardingActive || paused) return;
+
   if (mode !== "play") {
     updateEffects(dt);
     return;
@@ -517,6 +606,13 @@ function loop(time) {
 
 window.addEventListener("resize", resize);
 window.addEventListener("keydown", (event) => {
+  if (onboardingActive) {
+    if (event.code === "Enter") {
+      event.preventDefault();
+      advanceOnboarding(event);
+    }
+    return;
+  }
   if (event.code === "KeyP" || event.code === "Escape") {
     event.preventDefault();
     togglePause();
@@ -530,6 +626,7 @@ window.addEventListener("keydown", (event) => {
 window.addEventListener("keyup", (event) => keys.delete(event.code));
 
 canvas.addEventListener("pointerdown", (event) => {
+  if (onboardingActive) return;
   pointerActive = true;
   canvas.setPointerCapture?.(event.pointerId);
   rightPaddle.y +=
@@ -546,6 +643,13 @@ canvas.addEventListener("pointerup", () => {
 });
 canvas.addEventListener("pointercancel", () => {
   pointerActive = false;
+});
+
+ui.onboardingNext.addEventListener("click", advanceOnboarding);
+ui.onboarding.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  if (event.target === ui.onboardingNext) return;
+  advanceOnboarding(event);
 });
 
 ui.again.addEventListener("click", resetRally);
@@ -568,4 +672,5 @@ ui.share.addEventListener("click", async () => {
 
 resize();
 updateHud();
+initOnboarding();
 requestAnimationFrame(loop);

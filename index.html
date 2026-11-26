@@ -54,6 +54,38 @@
         </button>
       </div>
     </div>
+    <div
+      id="onboarding"
+      class="onboarding"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="onboardingTitle"
+      aria-describedby="onboardingText"
+    >
+      <div class="onboarding-panel">
+        <div class="onboarding-kicker" id="onboardingKicker">HOW TO PLAY</div>
+        <h1 id="onboardingTitle">MOVE YOUR PADDLE</h1>
+        <p id="onboardingText">
+          Use the mouse or arrow keys to move the pink paddle and return the
+          ball.
+        </p>
+        <div id="arrowDemo" class="arrow-demo" aria-hidden="true">
+          <div class="demo-paddle"></div>
+          <div class="demo-ball"></div>
+          <div class="demo-arrows">
+            <span>↑</span>
+            <span>↓</span>
+          </div>
+        </div>
+        <button
+          id="onboardingNext"
+          class="retro-button onboarding-button"
+          type="button"
+        >
+          TAP / ENTER
+        </button>
+      </div>
+    </div>
 
     <!-- Legacy inline script retained only for migration; game logic is loaded from game.js. -->
     <!--
