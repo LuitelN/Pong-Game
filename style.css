@@ -464,6 +464,14 @@ canvas {
   pointer-events: none;
   visibility: hidden;
 }
+.invite-button {
+  width: 100%;
+  margin: 8px 0 0;
+  display: none;
+}
+.invite-button.show {
+  display: block;
+}
 .room-list {
   display: grid;
   gap: 8px;

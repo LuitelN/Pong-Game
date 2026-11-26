@@ -39,6 +39,7 @@ const ui = {
   roomList: document.querySelector("#roomList"),
   leaveRoom: document.querySelector("#leaveRoom"),
   startMatchButton: document.querySelector("#startMatchButton"),
+  inviteButton: document.querySelector("#inviteButton"),
 };
 
 const SAVE_KEY = "rally100_save";
@@ -186,8 +187,10 @@ function showLobby() {
   ui.modeGate.classList.remove("show");
   ui.lobby.classList.add("show");
   ui.playerName.value = getPlayerName();
+  readRoomInvite();
   setSelectedSide(preferredSide);
   setStartMatchVisible(false);
+  setInviteButtonVisible(Boolean(multiplayerRoom));
   multiplayerPeerReady = false;
   setupLobbyChannel();
 }
@@ -232,6 +235,39 @@ function sanitizeRoomCode(value) {
     .replace(/[^A-Z0-9]/g, "")
     .slice(0, 12);
 }
+function getRoomInviteUrl(code) {
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.hash = "";
+  url.searchParams.set("room", code);
+  return url.toString();
+}
+async function copyRoomInvite() {
+  if (!multiplayerRoom) {
+    ui.lobbyStatus.textContent = "Create or join a room before sharing it.";
+    return;
+  }
+  const invite = getRoomInviteUrl(multiplayerRoom);
+  try {
+    if (navigator.share) {
+      await navigator.share({
+        title: "Join RALLY 100",
+        text: `Join room ${multiplayerRoom}`,
+        url: invite,
+      });
+    } else {
+      await navigator.clipboard.writeText(invite);
+      ui.inviteButton.textContent = "LINK COPIED";
+      setTimeout(() => {
+        ui.inviteButton.textContent = "COPY INVITE LINK";
+      }, 1200);
+    }
+  } catch (error) {
+    if (error?.name !== "AbortError") {
+      ui.lobbyStatus.textContent = `Invite link: ${invite}`;
+    }
+  }
+}
 function renderRoomList() {
   ui.roomList.replaceChildren();
   const now = Date.now();
@@ -240,7 +276,7 @@ function renderRoomList() {
   if (!lobbyRooms.size) {
     const empty = document.createElement("div");
     empty.className = "room-row";
-    empty.textContent = "No open rooms nearby";
+    empty.textContent = "No open rooms in nearby tabs";
     ui.roomList.appendChild(empty);
     return;
   }
@@ -1166,6 +1202,7 @@ ui.multiplayerButton.addEventListener("click", showLobby);
 ui.lobbyBack.addEventListener("click", showModeGate);
 ui.leaveRoom.addEventListener("click", () => {
   leaveMultiplayerRoom(true);
+  setInviteButtonVisible(false);
   ui.lobbyStatus.textContent =
     "Left the room. You can create or join another room.";
 });
@@ -1181,9 +1218,24 @@ ui.startMatchButton.addEventListener("click", () => {
   peerChannel.send({ type: "start-match" });
   startMultiplayerMatch();
 });
+ui.inviteButton.addEventListener("click", copyRoomInvite);
+
+let multiplayerConnectionTimer = 0;
+
+function setInviteButtonVisible(visible) {
+  ui.inviteButton?.classList.toggle("show", visible);
+}
+
+function readRoomInvite() {
+  const code = sanitizeRoomCode(new URL(window.location.href).searchParams.get("room"));
+  if (code) {
+    ui.roomCode.value = code;
+  }
+}
 
 resize();
 updateHud();
+readRoomInvite();
 ui.modeGate.classList.add("show");
 setSelectedSide(preferredSide);
 requestAnimationFrame(loop);
