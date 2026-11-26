@@ -180,8 +180,8 @@ function getPlayerName() {
 function setSelectedSide(side) {
   preferredSide = side;
   multiplayerSide = side;
-  ui.sideLeft.classList.toggle("selected", side === "left");
-  ui.sideRight.classList.toggle("selected", side === "right");
+  ui.sideLeft?.classList.toggle("selected", side === "left");
+  ui.sideRight?.classList.toggle("selected", side === "right");
 }
 function showLobby() {
   ui.modeGate.classList.remove("show");
@@ -1226,8 +1226,6 @@ ui.leaveRoom.addEventListener("click", () => {
   ui.lobbyStatus.textContent =
     "Left the room. You can create or join another room.";
 });
-ui.sideLeft.addEventListener("click", () => setSelectedSide("left"));
-ui.sideRight.addEventListener("click", () => setSelectedSide("right"));
 ui.createRoom.addEventListener("click", createRoom);
 ui.joinRoom.addEventListener("click", joinRoom);
 ui.playerName.addEventListener("change", () =>
