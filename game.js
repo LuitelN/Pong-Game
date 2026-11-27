@@ -854,10 +854,16 @@ function applyRemoteMultiplayerState(message) {
 }
 function sendMultiplayerPaddleState() {
   if (!peerChannel || !multiplayerActive) return;
+  const now = performance.now();
+  if (now - lastPaddleSendAt < 33) return;
+  lastPaddleSendAt = now;
   peerChannel.send({ type: "paddle", normalized: multiplayerPaddleNormalized });
 }
 function sendHostState() {
   if (!peerChannel || !multiplayerHost) return;
+  const now = performance.now();
+  if (now - lastHostSendAt < 33) return;
+  lastHostSendAt = now;
   peerChannel.send({
     type: "state",
     ballX: ball.x / width,
@@ -905,11 +911,10 @@ function updateMultiplayer(dt) {
     Math.min(1, scale * 15);
   localPaddle.y += localPaddle.velocity * scale;
   localPaddle.y = clamp(localPaddle.y, topLimit, bottomLimit);
-  multiplayerPaddleNormalized = clamp(
-    (localPaddle.y + localPaddle.height * 0.5) / height,
-    0.05,
-    0.95,
-  );
+  if (pointerTargetY !== null) {
+    const target = clamp(pointerTargetY - localPaddle.height * 0.5, topLimit, bottomLimit);
+    localPaddle.y += (target - localPaddle.y) * Math.min(1, scale * 18);
+  }
 
   const remotePaddle = multiplayerSide === "left" ? rightPaddle : leftPaddle;
   remotePaddle.y +=
@@ -974,6 +979,10 @@ function update(dt) {
   const topLimit = height * 0.12;
   const bottomLimit = height - rightPaddle.height - height * 0.04;
   rightPaddle.y = clamp(rightPaddle.y, topLimit, bottomLimit);
+  if (pointerTargetY !== null) {
+    const target = clamp(pointerTargetY - rightPaddle.height * 0.5, topLimit, bottomLimit);
+    rightPaddle.y += (target - rightPaddle.y) * Math.min(1, scale * 18);
+  }
 
   const targetY = clamp(
     ball.y - leftPaddle.height * 0.5,
@@ -1116,10 +1125,12 @@ function draw() {
 
 function loop(time) {
   if (!lastTime) lastTime = time;
-  const dt = (time - lastTime) / 1000 || 0;
+  const dt = Math.min((time - lastTime) / 1000 || 0, 0.05);
   lastTime = time;
-  update(dt);
-  draw();
+  if (!document.hidden) {
+    update(dt);
+    draw();
+  }
   requestAnimationFrame(loop);
 }
 
@@ -1148,30 +1159,18 @@ canvas?.addEventListener("pointerdown", (event) => {
   if (onboardingActive || gameMode === null) return;
   pointerActive = true;
   canvas.setPointerCapture?.(event.pointerId);
-  const paddle =
-    gameMode === "multiplayer"
-      ? multiplayerSide === "left"
-        ? leftPaddle
-        : rightPaddle
-      : rightPaddle;
-  paddle.y += (event.clientY - paddle.height * 0.5 - paddle.y) * 0.32;
+  pointerTargetY = event.clientY;
 });
 canvas?.addEventListener("pointermove", (event) => {
-  if (pointerActive) {
-    const paddle =
-      gameMode === "multiplayer"
-        ? multiplayerSide === "left"
-          ? leftPaddle
-          : rightPaddle
-        : rightPaddle;
-    paddle.y += (event.clientY - paddle.height * 0.5 - paddle.y) * 0.32;
-  }
+  if (pointerActive) pointerTargetY = event.clientY;
 });
 canvas?.addEventListener("pointerup", () => {
   pointerActive = false;
+  pointerTargetY = null;
 });
 canvas?.addEventListener("pointercancel", () => {
   pointerActive = false;
+  pointerTargetY = null;
 });
 
 ui.onboardingNext?.addEventListener("click", advanceOnboarding);
@@ -1244,6 +1243,9 @@ ui.home?.addEventListener("click", () => {
 });
 
 let multiplayerConnectionTimer = 0;
+let pointerTargetY = null;
+let lastPaddleSendAt = 0;
+let lastHostSendAt = 0;
 
 function setInviteButtonVisible(visible) {
   ui.inviteButton?.classList.toggle("show", visible);
